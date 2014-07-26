@@ -1,0 +1,107 @@
+---
+title: "MTCars Analysis"
+author: "Dennis Reilly"
+date: "Wednesday, July 25, 2014"
+output: pdf_document
+---
+```{r loaddata, echo=FALSE, results='hide'}
+
+#load data
+library(datasets); library(MASS)
+data(mtcars)
+```
+# Summary
+
+In this analysis we will seek to answer two questions:
+<ul>
+<li>"Is an automatic or manual transmission better for MPG"</li>
+<li>"Quantify the MPG difference between automatic and manual transmissions"</li>
+</ul>
+The conclusion based on only linear regression is that manual transmissions have slightly better (~3 mpg) fuel economy than automatic transmissions. This analysis was based on a fairly small sample set and additional methods may want to be considered.
+
+# Exploration of the data
+
+The first step in this analysis will be to take a look at the data. In figure 1 of the appendix is a boxplot of the mpg variable and the am variable.
+
+This initial plot shows that cars with manual transmission have a higher overall MPG than do cars with automatic transmission. The mean, median, and range for the manual transmisson cars are higher than that of the automatic transmission. There are however other variables that are correlated with MPG (see figure 2) so we will need to take a look at those as well to see if those variables are also affecting MPG.
+
+It may also be true that Automatic transmission is associated with heavier cars with big engines, this would mean that the difference in MPG that we are seeing is not caused by the transmission type but rather by those other factors.
+
+
+# Model Selection
+
+The next step is to run a regression against all available variables to see if any others are influencing mpg. 
+```{r}
+fitall=lm(mpg~., data = mtcars)
+```
+
+We will want to eliminate any variables that are not significant predictors of mpg. These additional variables may "overfit" the test data but will most likely create a model that does not perform as well on new data.
+
+In looking at the regression summary (appendix figure 3) it is evident that some of these variables are not significant. Upon initial inspection it looks like only one variable is significant at all (wt). But this could be due to additional "noise" introduced by the insignificant variables (especially with some of the high correlations that we saw in figure 2). To get a better idea of significance, the number of variables will be reduced. Using reverse stepwise model selection we can start eliminating the most insignificant variables until we are left with a better model.
+
+```{r, results='hide'}
+step(fitall, direction="backward")
+```
+
+This leaves us with the following model:
+```{r}
+bestfit=lm(formula = mpg ~ wt + qsec + am, data = mtcars)
+summary(bestfit)$coef
+```
+In this model the "am" variable has a t value of 2.08 and a P value of .0467, qhich means that it is significant (barely) at the .05 significance level. The wt and qsec variables are highly significant. The estimate for the "am" variable would suggest that cars with manual transmissions have a 2.9358 higher mpg than cars with automatic transmission (if all else is equal).
+
+
+# Residuals
+```{r, echo=FALSE}
+outlier=subset((rstandard(bestfit)),(rstandard(bestfit)>2))
+countoutliers=length(outlier)
+outliers=names(outlier)
+```
+
+Residuals have been plotted (appendix figure 5) along with other diagnostics. In looking at these plots we do see a slight U-shape in the residual best fit line so we may need to explore adding quadratic terms but there does not apper to be any heteroskedasticity issues. The second plot shows that the results are basically normally distributed (although there is some non-normality displayed by extreme values). The fourth plot shows that there are no observations that exert unacceptable leverage.
+
+There are `r countoutliers` outliers, they are: `r outliers`
+
+
+# Certainty
+```{r echo=FALSE}
+confint(bestfit)
+lowbound=confint(bestfit)[4,1]
+upperbound=confint(bestfit)[4,2]
+```
+With 95% confidence, the true mean of the difference in MPG for Manual transmission is between `r lowbound` and `r upperbound`.
+
+# Appendix
+
+## About the data
+The data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973-74 models).
+
+## Figure 1
+```{r, echo=FALSE}
+data(mtcars)
+library(ggplot2)
+p = ggplot(mtcars, aes(factor(am), mpg, fill=factor(am))) + geom_boxplot() + labs(title="MPG by Transmission Type") + theme(plot.title = element_text(lineheight=.8, face="bold")) + xlab("Transmission")
+p + scale_fill_discrete(name="Transmition Type", labels=c("Automatic", "Manual"))
+```
+
+## Figure 2
+```{r}
+cor(mtcars)
+```
+
+## Figure 3
+```{r}
+summary(fitall)$coef
+```
+
+##Figure 4
+```{r}
+summary(bestfit)
+```
+
+## Figure 5
+```{r}
+par(mfrow=c(2,2))
+plot(bestfit)
+```
+
