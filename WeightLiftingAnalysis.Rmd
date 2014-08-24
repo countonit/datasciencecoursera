@@ -1,0 +1,78 @@
+---
+title: "Weight Lifting Predictions"
+author: "Dennis Reilly"
+date: "Saturday, August 23, 2014"
+output: html_document
+---
+# Summary
+In this analysis we attept to properly classify a set of excercises based on data from sensors attached to a test subjects body. The data set contains over 19,000 observations on 160 variables. Using random forests a highly accurate model (99.5% out of sample accuracy) was build.
+
+# Load the Data
+The first step is to load the data and any required packages. To ensure consistency a random seed will also be set.
+```{rloaddata, include=FALSE}
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="train.csv")
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="test.csv")
+train=read.csv("train.csv")
+test=read.csv("test.csv")
+
+#load required packages
+library(caret)
+library(randomForest)
+
+set.seed(100)
+```
+
+# Data Cleaning
+
+In looking at the data there are many NA's that we will need to deal with. It appears that those rows where the variable new_window is set to "yes" are summary rows, these rows are the only ones that have any values for some of the variables. In the test set there are no rows with a "yes" for new_window, so we will start by excluding all of those rows.
+
+```{r}
+train=train[train$new_window=="no",]
+```
+
+# Feature Selection
+The first seven variables describe the user and the time that the reading took place. While these variables may have predictive power on the training set they should have no influence over new data so they will need to be excluded. Also, many of the variables now only contain NA (after removing the new_window rows), they will also be removed.
+
+```{r}
+#Remove user, time, and window info
+train=train[,-(1:7)]
+
+#Change all remaining factor variables to numeric (except for the classe variable)
+for (i in 1:(ncol(train)-1)){
+  if (class(train[,i])=="factor")
+  train[,i]=as.numeric(as.character(train[,i]))
+}
+
+#Remove all columns that only contain N/As
+train = train[,colSums(is.na(train))<nrow(train)]
+```
+
+
+# Creating the Model
+The training data will be split into a training and a validation set, then we will build our random forest.
+
+```{r}
+#split the dataset
+inTrain=createDataPartition(train$classe, p=.75, list=FALSE)
+training=train[inTrain,]
+val=train[-inTrain,]
+
+rf=randomForest(classe~., data=training)
+
+#Predict on the training set
+rfpred=predict(rf, training)
+confusionMatrix(rfpred, training$classe)$overall[1]
+```
+
+When this model is used to make prediction on the training set we see an accuraccy of 1. While this is very strange to see a model that is 100% accurate we can check it later against our validation set. 
+
+
+# Cross Validation and Out of sample error
+Given that a random forest was used, cross validation is not necessary to guard against over-fitting. We can estimate out of sample error by using our validation set. 
+
+```{r}
+rfpredval=predict(rf, val)
+confusionMatrix(rfpredval, val$classe)
+```
+
+Here we still see a 99.3% accuraccy, so we know that this is a highly accurate model.
